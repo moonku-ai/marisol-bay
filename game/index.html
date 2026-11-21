@@ -3,17 +3,176 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>Marisol Bay — Open World Crime Game</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
+  :root {
+    --amber: #f59e0b; --amber-deep: #d97706; --navy: #0f172a; --ink: #f8fafc;
+    --muted: #94a3b8; --danger: #dc2626; --good: #22c55e; --panel: rgba(15, 23, 42, 0.82);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0f172a;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif; color: var(--ink); }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 5; }
+  #hud.on { display: block; }
+  .panel { background: var(--panel); border: 1px solid rgba(255,255,255,0.10); border-radius: 10px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.35); backdrop-filter: blur(2px); }
+  #stats { position: absolute; top: 14px; left: 14px; padding: 10px 14px; min-width: 240px; }
+  #stats .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; letter-spacing: 0.04em; }
+  #stats .label { width: 52px; color: var(--muted); font-weight: 700; font-size: 11px; }
+  .bar { flex: 1; height: 10px; border-radius: 6px; background: rgba(255,255,255,0.14); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 6px; transition: width 0.15s linear; }
+  #healthFill { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  #armorFill { background: linear-gradient(90deg, #38bdf8, #7dd3fc); }
+  #cash { font-size: 20px; font-weight: 800; color: var(--amber); letter-spacing: 0.03em; }
+  #cash small { color: var(--muted); font-size: 11px; font-weight: 600; display: block; letter-spacing: 0.08em; }
+  #wanted { position: absolute; top: 14px; right: 14px; padding: 8px 14px; text-align: right; }
+  #stars { font-size: 26px; letter-spacing: 4px; color: #334155; line-height: 1; }
+  #stars .lit { color: var(--amber); text-shadow: 0 0 12px rgba(245,158,11,0.8); }
+  #wantedLabel { font-size: 11px; color: var(--muted); letter-spacing: 0.14em; font-weight: 700; }
+  #clock { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); padding: 7px 16px;
+    font-size: 16px; font-weight: 800; letter-spacing: 0.12em; }
+  #clock small { color: var(--muted); font-size: 11px; letter-spacing: 0.1em; }
+  #objective { position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    padding: 9px 18px; font-size: 14px; font-weight: 700; text-align: center; max-width: 640px; }
+  #objective .dist { color: var(--amber); margin-left: 8px; }
+  #objective .mname { color: var(--amber); }
+  #minimapWrap { position: absolute; left: 14px; bottom: 14px; padding: 6px; }
+  #minimap { display: block; border-radius: 6px; }
+  #minimapLabel { font-size: 10px; color: var(--muted); letter-spacing: 0.14em; font-weight: 700;
+    text-align: center; margin-top: 4px; }
+  #speedo { position: absolute; right: 14px; bottom: 14px; padding: 10px 16px; text-align: right; display: none; }
+  #speedo.on { display: block; }
+  #speedVal { font-size: 34px; font-weight: 800; line-height: 1; }
+  #speedVal small { font-size: 13px; color: var(--muted); }
+  #carName { font-size: 12px; color: var(--muted); letter-spacing: 0.08em; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;
+    transform: translate(-50%, -50%); display: none; }
+  #crosshair.on { display: block; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff;
+    box-shadow: 0 0 4px rgba(0,0,0,0.9); }
+  #crosshair::before { left: 12px; top: 0; width: 2px; height: 26px; }
+  #crosshair::after { left: 0; top: 12px; width: 26px; height: 2px; }
+  #message { position: absolute; left: 50%; top: 34%; transform: translateX(-50%); text-align: center;
+    font-size: 22px; font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,0.85); letter-spacing: 0.03em; }
+  #message .sub { display: block; font-size: 14px; font-weight: 600; color: var(--amber); margin-top: 6px; }
+  #killfeed { position: absolute; top: 96px; right: 14px; text-align: right; font-size: 13px; font-weight: 600; }
+  #killfeed div { background: var(--panel); border-radius: 6px; padding: 5px 10px; margin-top: 5px;
+    border-right: 3px solid var(--amber); }
+  #toast { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%);
+    padding: 8px 16px; font-size: 14px; font-weight: 700; display: none; }
+  #toast.on { display: block; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 4; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(220,38,38,0.55) 100%); }
+  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; color: var(--muted); background: var(--panel); padding: 6px 12px; border-radius: 8px; }
+  #fps { position: absolute; right: 14px; bottom: 96px; font-size: 11px; color: var(--muted); display: none; }
+
+  /* ---------- Screens ---------- */
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, rgba(15,23,42,0.55) 0%, rgba(15,23,42,0.88) 100%); }
+  .screen.hidden { display: none; }
+  .card { max-width: 640px; width: calc(100% - 40px); padding: 34px 40px; text-align: center;
+    background: rgba(15,23,42,0.92); border: 1px solid rgba(245,158,11,0.45); border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+  .card h1 { margin: 0; font-size: 54px; letter-spacing: 0.06em; color: var(--amber);
+    text-shadow: 0 4px 24px rgba(245,158,11,0.45); line-height: 1; }
+  .card h1 span { color: var(--ink); }
+  .card h2 { margin: 6px 0 0; font-size: 15px; letter-spacing: 0.34em; color: var(--muted); font-weight: 700; }
+  .card p.story { font-size: 15px; line-height: 1.65; color: #e2e8f0; margin: 18px 0 6px; }
+  .card .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; text-align: left;
+    font-size: 13px; color: #cbd5e1; margin: 18px auto 6px; max-width: 520px; }
+  .card .controls b { color: var(--amber); font-weight: 800; }
+  .btn { pointer-events: auto; cursor: pointer; border: none; border-radius: 10px; padding: 13px 34px;
+    font-size: 17px; font-weight: 800; letter-spacing: 0.06em; color: #0f172a; background: var(--amber);
+    box-shadow: 0 6px 20px rgba(245,158,11,0.4); transition: transform 0.12s ease, box-shadow 0.12s ease; }
+  .btn:hover { transform: translateY(-1px) scale(1.02); box-shadow: 0 10px 26px rgba(245,158,11,0.55); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid rgba(255,255,255,0.35); box-shadow: none; }
+  .btnrow { display: flex; gap: 12px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+  .card .foot { margin-top: 16px; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+  #pauseScreen .card h1, #overScreen .card h1 { font-size: 40px; }
+  #overTitle { color: var(--danger); }
+  .big { font-size: 30px; font-weight: 800; color: var(--amber); }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
+<canvas id="scene" aria-label="Marisol Bay: open world crime game"></canvas>
 <p id="status" role="status" aria-live="polite"></p>
+
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="stats" class="panel">
+    <div id="cash"><small>CASH</small>$<span id="cashVal">0</span></div>
+    <div class="row"><span class="label">HEALTH</span><div class="bar"><i id="healthFill" style="width:100%"></i></div></div>
+    <div class="row"><span class="label">ARMOR</span><div class="bar"><i id="armorFill" style="width:0%"></i></div></div>
+    <div class="row"><span class="label">WEAPON</span><span id="weaponName">Fists</span><span id="ammoVal"></span></div>
+  </div>
+  <div id="wanted" class="panel">
+    <div id="stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+    <div id="wantedLabel">WANTED</div>
+  </div>
+  <div id="clock" class="panel"><span id="clockTime">09:00</span> <small id="clockDay">DAY 1 · MARISOL BAY</small></div>
+  <div id="objective" class="panel"><span class="mname" id="missionName"></span> <span id="objectiveText"></span><span class="dist" id="objectiveDist"></span></div>
+  <div id="minimapWrap" class="panel"><canvas id="minimap" width="200" height="200"></canvas><div id="minimapLabel">MARISOL BAY</div></div>
+  <div id="speedo" class="panel"><div id="speedVal">0 <small>MPH</small></div><div id="carName"></div></div>
+  <div id="crosshair"></div>
+  <div id="message"></div>
+  <div id="killfeed"></div>
+  <div id="toast" class="panel"></div>
+  <div id="hint">WASD move · Mouse look · E enter car · F shoot · Shift run · M mute · Esc pause</div>
+  <div id="fps"></div>
+</div>
+
+<div id="startScreen" class="screen">
+  <div class="card">
+    <h1>MARISOL <span>BAY</span></h1>
+    <h2>AN OPEN WORLD CRIME STORY</h2>
+    <p class="story">You are <b>Rae Marisol</b>, a courier fresh off the ferry with empty pockets and a
+      borrowed scooter that just died. The Bay runs on favors, fast cars and faster getaways.
+      Deliver the packages, steal the cars, dodge the Marisol Bay Police — and by Friday,
+      own the waterfront.</p>
+    <div class="controls">
+      <div><b>W A S D</b> — move / drive</div><div><b>Mouse</b> — look around</div>
+      <div><b>Shift</b> — sprint</div><div><b>E</b> — enter / exit car</div>
+      <div><b>Click / F</b> — shoot</div><div><b>1 / 2</b> — fists / pistol / rifle</div>
+      <div><b>R</b> — reload</div><div><b>M</b> — mute sound</div>
+      <div><b>Esc</b> — pause</div><div><b>G</b> — buy rifle at gun shop ($300)</div>
+    </div>
+    <div class="btnrow">
+      <button class="btn" id="startBtn">START STORY</button>
+      <button class="btn ghost" id="continueBtn" style="display:none">CONTINUE SAVE</button>
+    </div>
+    <div class="foot">MARISOL BAY · A SUN-SOAKED COASTAL CITY · ORIGINAL GAME · NO ROCKSTAR CONTENT · KEYBOARD + MOUSE</div>
+  </div>
+</div>
+
+<div id="pauseScreen" class="screen hidden">
+  <div class="card">
+    <h1>PAUSED</h1>
+    <p class="story" id="pauseStats"></p>
+    <div class="btnrow">
+      <button class="btn" id="resumeBtn">RESUME</button>
+      <button class="btn ghost" id="restartBtn">RESTART DAY</button>
+    </div>
+    <div class="foot">PROGRESS SAVES AUTOMATICALLY AFTER EACH MISSION</div>
+  </div>
+</div>
+
+<div id="overScreen" class="screen hidden">
+  <div class="card">
+    <h1 id="overTitle">WASTED</h1>
+    <p class="story" id="overText">The Bay chewed you up. The hospital patched you up.</p>
+    <div class="btnrow"><button class="btn" id="retryBtn">RETRY MISSION</button></div>
+    <div class="foot">CASH KEPT · MISSION RESTARTS FROM ITS BRIEFING</div>
+  </div>
+</div>
+
+<script src="./vendor/three.min.js"></script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
